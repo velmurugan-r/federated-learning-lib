@@ -1,1 +1,1 @@
-git+https://github.com/velmurugan-r/federated-learning-lib/tree/main/federated-learning-lib@federated_learning_lib-1.0.1-py3-none-any.whl
+https://github.com/velmurugan-r/federated-learning-lib/tree/main/federated-learning-lib@federated_learning_lib-1.0.1-py3-none-any.whl
