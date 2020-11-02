@@ -1,2 +1,1 @@
-pip>=20.2.4
-https://github.com/velmurugan-r/federated-learning-lib/tree/main/federated-learning-lib@federated_learning_lib-1.0.1-py3-none-any.whl
+federated_learning_lib-1.0.1-py3-none-any.whl
