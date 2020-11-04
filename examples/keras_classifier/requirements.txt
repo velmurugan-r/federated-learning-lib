@@ -1,3 +1,4 @@
 pip>=20.2.4
 opencv-python
 federated_learning_lib-1.0.1-py3-none-any.whl
+h5py==2.10.0
