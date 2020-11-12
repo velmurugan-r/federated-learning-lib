@@ -35,8 +35,105 @@ def setup_parser():
     p.add_argument("--stratify", "-s", help=STRATIFY_DESC, action="store_true")
     p.add_argument("--create_new", "-new", action="store_true", help=NEW_DESC)
     p.add_argument("--name", help=NAME_DESC)
+    ## For NeurIPS
+    p.add_argument("--labels", nargs='+', type=int, help='list of labels to train on')
     return p
 
+'''
+For NeurIPS
+'''
+def print_statistics_labels(i, x_test_pi, x_train_pi, labels, y_train_pi):
+    print('Party_', i)
+    print('nb_x_train: ', np.shape(x_train_pi),
+          'nb_x_test: ', np.shape(x_test_pi))
+    for l in labels:
+        print('* Label ', l, ' samples: ', (y_train_pi == l).sum())
+
+'''
+For NeurIPS
+'''
+def save_mnist_party_data_with_labels(nb_dp_per_party, should_stratify, party_folder, party_labels):
+    """
+    Saves MNIST party data with specific labels for parties
+
+    :param nb_dp_per_party: the number of data points each party should have
+    :type nb_dp_per_party: `list[int]`
+    :param should_stratify: True if data should be assigned proportional to source class distributions
+    :type should_stratify: `bool`
+    :param party_folder: folder to save party data
+    :type party_folder: `str`
+    """
+    dataset_path = os.path.join("examples", "datasets")
+    if not os.path.exists(dataset_path):
+        os.makedirs(dataset_path)
+
+    # my_labels = [2,4,6] ## digits party wants in its dataset
+
+
+    (x_train, y_train), (x_test, y_test) = load_mnist(download_dir=dataset_path)
+
+    ## Now modiify x_train and y_train to only include those labels that the party wants in its dataset
+    x_train_filtered = []
+    y_train_filtered = []
+    for label in party_labels:
+        indices = np.where(y_train == label)
+        for index in indices[0]:
+            y_train_filtered.append(y_train[index])
+            x_train_filtered.append(x_train[index])
+
+    ## Now use those as x_train, y_train
+    x_train = np.array(x_train_filtered)
+    y_train = np.array(y_train_filtered)
+
+    labels, train_counts = np.unique(y_train, return_counts=True)
+    te_labels, test_counts = np.unique(y_test, return_counts=True)
+    if np.all(np.isin(labels, te_labels)):
+        print("Warning: test set and train set contain different labels")
+
+    num_train = np.shape(y_train)[0]
+    num_test = np.shape(y_test)[0]
+    num_labels = np.shape(np.unique(y_test))[0]
+
+    nb_parties = len(nb_dp_per_party)
+
+    if should_stratify:
+        # Sample according to source label distribution
+        train_probs = {
+            label: train_counts[label] / float(num_train) for label in labels}
+        test_probs = {label: test_counts[label] /
+                      float(num_test) for label in te_labels}
+    else:
+        # Sample uniformly
+        train_probs = {label: 1.0 / len(labels) for label in labels}
+        test_probs = {label: 1.0 / len(te_labels) for label in te_labels}
+
+    for idx, dp in enumerate(nb_dp_per_party):
+        train_p = np.array([train_probs[y_train[idx]]
+                            for idx in range(num_train)])
+        train_p /= np.sum(train_p)
+        train_indices = np.random.choice(num_train, dp, p=train_p)
+        test_p = np.array([test_probs[y_test[idx]] for idx in range(num_test)])
+        test_p /= np.sum(test_p)
+
+        # Split test evenly
+        test_indices = np.random.choice(
+            num_test, int(num_test / nb_parties), p=test_p)
+
+        x_train_pi = x_train[train_indices]
+        y_train_pi = y_train[train_indices]
+        x_test_pi = x_test[test_indices]
+        y_test_pi = y_test[test_indices]
+
+        # Now put it all in an npz
+        name_file = 'data_party' + str(idx) + '.npz'
+        name_file = os.path.join(party_folder, name_file)
+        np.savez(name_file, x_train=x_train_pi, y_train=y_train_pi,
+                 x_test=x_test_pi, y_test=y_test_pi)
+
+        # print_statistics(idx, x_test_pi, x_train_pi, num_labels, y_train_pi)
+        print_statistics_labels(idx, x_test_pi, x_train_pi, party_labels, y_train_pi) ## use party_labels when printing stats as well
+
+        print('Finished! :) Data saved in ', party_folder)
 
 def print_statistics(i, x_test_pi, x_train_pi, nb_labels, y_train_pi):
     print('Party_', i)
@@ -539,6 +636,7 @@ if __name__ == '__main__':
     stratify = args.stratify
     create_new = args.create_new
     exp_name = args.name
+    labels_list = args.labels ## For NeurIPS
 
     # Check for errors
     if len(points_per_party) == 1:
@@ -571,7 +669,10 @@ if __name__ == '__main__':
     elif dataset == 'adult':
         save_adult_party_data(points_per_party, stratify, folder)
     elif args.dataset == 'mnist':
-        save_mnist_party_data(points_per_party, stratify, folder)
+        if labels_list:
+            save_mnist_party_data_with_labels(points_per_party, stratify, folder,labels_list)
+        else:
+            save_mnist_party_data(points_per_party, stratify, folder)
     elif dataset == 'higgs':
         save_higgs_party_data(points_per_party, stratify, folder)
     elif dataset == 'airline':
